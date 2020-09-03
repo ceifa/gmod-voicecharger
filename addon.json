@@ -1,0 +1,10 @@
+{
+    "title": "Voice Battery / Charger",
+    "type": "tool",
+    "tags": [],
+    "ignore": [
+        "README.md",
+        ".git/*",
+        "image.jpeg"
+    ]
+}

@@ -7,20 +7,22 @@ net.Receive("voice_state", function(length, ply)
     ply.isTalking = net.ReadBit()
 end)
 
-hook.Add("Think", "VoiceChargerDrain", function()
-    next_think = next_think or CurTime()
-    if CurTime() < next_think then return end
-    -- caching some convar variables (i know that it will be cached internally)
-    local drain = GetConVar("voicecharger_drain"):GetFloat()
-    local maxtime = GetConVar("voicecharger_max_time"):GetFloat()
-    local regen = GetConVar("voicecharger_regen"):GetFloat()
-    -- send current voice_max_time
-    net.Start("voice_refresh_max_time")
-    net.WriteFloat(maxtime)
-    net.Broadcast()
+local next_think = CurTime() + 60
 
-    for _, v in pairs(player.GetAll()) do
-        if v:GetUserGroup() ~= "user" or (PS and v:PS_HasItemEquipped("removebattery")) then continue end -- "removebattery" is a pointshop item to remove voice drain in my server
+-- TODO: This think hook can be optimized
+hook.Add("Think", "VoiceChargerDrain", function()
+    if CurTime() < next_think then return end
+
+    -- caching some convar variables (i know that it will be cached internally)
+    local drain = VOICECHARGER.Drain:GetFloat()
+    local maxtime = VOICECHARGER.MaxTime:GetFloat()
+    local regen = VOICECHARGER.Regen:GetFloat()
+
+    for _, v in ipairs(player.GetAll()) do
+        if table.HasValue(VOICECHARGER.DisabledRanks, v:GetUserGroup()) then
+            return
+        end
+
         v.talkTime = v.talkTime or maxtime
         v.isTalking = v.isTalking or false
         local time = maxtime
@@ -31,10 +33,14 @@ hook.Add("Think", "VoiceChargerDrain", function()
             time = v.talkTime + regen
         end
 
-        v.talkTime = math.Clamp(time, 0, maxtime)
-        net.Start("voice_charger_time")
-        net.WriteFloat(v.talkTime)
-        net.Send(v)
+        local talkTime = math.Clamp(time, 0, maxtime)
+
+        if talkTime ~= v.talkTime then
+            v.talkTime = talkTime
+            net.Start("voice_charger_time")
+                net.WriteFloat(v.talkTime)
+            net.Send(v)
+        end
 
         if v.talkTime <= 0 and v.isTalking then
             net.Start("voice_force_stop")
@@ -43,4 +49,13 @@ hook.Add("Think", "VoiceChargerDrain", function()
     end
 
     next_think = CurTime() + 0.3
+end)
+
+hook.Add("PlayerInitialSpawn", "SendVoiceMaxTime", function()
+    timer.Simple(5, function()
+        -- send current voice_max_time
+        net.Start("voice_refresh_max_time")
+            net.WriteFloat(VOICECHARGER.MaxTime:GetFloat())
+        net.Broadcast()
+    end)
 end)
