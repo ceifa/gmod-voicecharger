@@ -1,54 +1,58 @@
+local currentBattery = 1
+local state = false
+
 -- Player started using voip
 hook.Add("PlayerStartVoice", "VoiceChargerStarted", function(ply)
-    if ply == LocalPlayer() then
-        net.Start("voice_state")
-            net.WriteBit(true)
-        net.SendToServer()
+    if ply == LocalPlayer() and not table.HasValue(VOICECHARGER.DisabledRanks, ply:GetUserGroup()) then
+        state = true
     end
 end)
 
 -- Player stoped using voip
 hook.Add("PlayerEndVoice", "VoiceChargerEnded", function(ply)
     if ply == LocalPlayer() then
-        net.Start("voice_state")
-            net.WriteBit(false)
-        net.SendToServer()
+        state = false
     end
 end)
 
--- force user to stop talking
-net.Receive("voice_force_stop", function(length, client)
-    RunConsoleCommand("-voicerecord")
+-- Force user to stop talking
+hook.Add("Think", "VoiceChargerHandler", function()
+    if currentBattery <= 0 then
+        RunConsoleCommand("-voicerecord")
+    end
+
+    if state then
+        currentBattery = currentBattery - VOICECHARGER.Drain:GetFloat() / 100
+
+        if currentBattery <= 0 then
+            currentBattery = 0
+        end
+    else
+        currentBattery = currentBattery + VOICECHARGER.Regen:GetFloat() / 100
+
+        if currentBattery >= 1 then
+            currentBattery = 1
+        end
+    end
 end)
 
-local actual_voice_time = 5
-local voice_max_time = 5
+local backgroundColor
 
--- refresh to current user voice time
-net.Receive("voice_charger_time", function()
-    actual_voice_time = net.ReadFloat()
-end)
-
--- refresh to current maxtime in server-side
-net.Receive("voice_refresh_max_time", function()
-    voice_max_time = net.ReadFloat()
-end)
-
--- print battery
+-- Render
 hook.Add("HUDPaint", "VoiceChargerBattery", function()
-    local cl = LocalPlayer()
+    if currentBattery >= 1 then return end
 
-    if not voice_max_time or actual_voice_time >= voice_max_time or table.HasValue(VOICECHARGER.DisabledRanks, cl:GetUserGroup()) then
-        return
+    if VOICECHARGER.RenderAsHotColors:GetBool() then
+        backgroundColor = LerpColor(currentBattery, Color(255, 0, 0), Color(0, 255, 0))
+    else
+        backgroundColor = LocalPlayer():GetPlayerColor():ToColor() or team.GetColor(LocalPlayer():Team())
     end
 
-    local heigth = actual_voice_time / voice_max_time * 210
-
-    local backgroundColor = cl:GetPlayerColor():ToColor() or team.GetColor(cl:Team())
-    backgroundColor.a = 160
+    backgroundColor.a = 180
 
     surface.SetDrawColor(backgroundColor)
     surface.DrawRect(25, 25, 220, 30)
-    surface.SetDrawColor(ColorAlpha(color_black, 160))
-    surface.DrawRect(30, 30, heigth, 20)
+
+    surface.SetDrawColor(ColorAlpha(color_black, 180))
+    surface.DrawRect(30, 30, currentBattery * 210, 20)
 end)
