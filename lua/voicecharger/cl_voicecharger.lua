@@ -3,8 +3,12 @@ local state = false
 
 -- Player started using voip
 hook.Add("PlayerStartVoice", "VoiceChargerStarted", function(ply)
-    if ply == LocalPlayer() and not table.HasValue(VOICECHARGER.DisabledRanks, ply:GetUserGroup()) then
-        state = true
+    if ply == LocalPlayer() then
+        local disabledRanks = string.Explode(",", VOICECHARGER.DisabledRanks:GetString())
+
+        if not table.HasValue(disabledRanks, ply:GetUserGroup()) then
+            state = true
+        end
     end
 end)
 
